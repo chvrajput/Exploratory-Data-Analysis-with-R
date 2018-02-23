@@ -1,0 +1,114 @@
+---
+title: "Wine Data Analysis"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+Column {data-width=650} {.tabset}
+-----------------------------------------------------------------------
+
+### Exploratory Data Analysis
+
+```{r}
+library(ggplot2)
+library(ggthemes)
+library(corrplot)
+library(reshape2)
+library(dplyr)
+library(randomForest)
+setwd('CaseStudy_wine')
+redwine = read.csv2('winequality-red.csv',dec=".")
+whitewine = read.csv2('winequality-white.csv',dec = ".")
+#Merged two datasets and create master data with “quality” variable as target variable and remaining independent variables.
+winedata=rbind(redwine,whitewine)
+
+#Create a variable indicating if a wine is good or bad
+winedata$good.wine<-ifelse(winedata$quality>6,1,0)
+#Summary statistics
+
+
+#Exploratory Data Analysis
+plot(winedata)
+
+```
+### Correlation Heatmap of Variables
+
+```{r}
+corrplot(cor(winedata))
+```
+
+### Distribution of good/bad wine
+
+```{r}
+#Distribution of good/bad red wines
+winedata$good.wine<-ifelse(winedata$quality>6,1,0)
+
+ggplot(winedata,aes(x=good.wine,fill=factor(good.wine)))+geom_bar(stat = "count",position = "dodge")+
+  scale_x_continuous(breaks = seq(0,1,1))+
+  ggtitle("Distribution of Good/Bad Red Wines")+
+  theme_few()
+  
+```
+
+### Distribution of wine quality ratings
+
+```{r}
+#Distribution of red wine quality ratings
+ggplot(winedata,aes(x=quality))+geom_bar(stat = "count",position = "dodge")+
+  scale_x_continuous(breaks = seq(3,8,1))+
+  ggtitle("Distribution of Red Wine Quality Ratings")+
+  theme_few()
+
+```
+
+### Citric Acid and Wine Quality
+```{r}
+#Citric Acid and Wine Quality
+ggplot(winedata,aes(x=citric.acid,fill=factor(good.wine)))+geom_density(alpha=0.25)+
+  geom_vline(aes(xintercept=mean(citric.acid[good.wine==0],na.rm=T)),color="red",linetype="dashed",lwd=1)+
+  geom_vline(aes(xintercept=mean(citric.acid[good.wine==1],na.rm=T)),color="blue",linetype="dashed",lwd=1)+
+  scale_x_continuous(breaks = seq(0,1,0.1))+
+  xlab(label = "Citric Acid Level")+
+  ggtitle("Distribution of Citric Acid Levels")+
+  theme_few()
+```
+
+###  Importance of variables
+```{r}
+#Baseline Random Forest Model
+wineRF<-randomForest(factor(good.wine)~.-quality,winedata,ntree=150)
+
+#The overall accuracy of our model is pretty good at around 89.64% overall.
+#However, we could clearly see that it is much better in predicting bad wines than good ones.
+
+# Variable importance
+importance <-importance(wineRF)
+varImportance <- data.frame(Variables = row.names(importance), 
+                            Importance = round(importance[ ,'MeanDecreaseGini'],2))
+
+# Create a rank variable based on importance
+rankImportance <- varImportance %>%
+  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+
+# Use ggplot2 to visualize the relative importance of variables
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+                           y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  geom_text(aes(x = Variables, y = 0.5, label = Rank),
+            hjust=0, vjust=0.55, size = 4, colour = 'red') +
+  labs(x = 'Variables') +
+  coord_flip() + 
+  theme_few()
+
+#Aha! The results of our Random Forest Model coincides nicely with our previous observation
+#from the density plots that alcohol and sulphates level are the most discriminating factor of wine quality.
+                          
+                          
+             
+```
